@@ -1,14 +1,14 @@
 'use strict';
 /**
- * 清理旧版本残留。
+ * Clean old version leftovers。
  *
- * 用户升级 ApkStart 常出现「装过好几个版本、卸载不干净」：便携版每换一次版本就多一个
- * ApkStart-vX.Y.Z-win64-portable 目录；NSIS 安装版升级后可能留下指向已删除目录的
- * 卸载项；更新过程还会在数据目录里留下一堆临时包。
+ * 用户升级 ApkStart 常出现「装过好几个版本, Uninstall不干净」: 便携版每换一次版本就多一个
+ * ApkStart-vX.Y.Z-win64-portable 目录; NSIS 安装版升级后可能留下指向已删除目录的
+ * Uninstall项; 更新过程还会在数据目录里留下一堆临时包。
  *
- * 这里只做**可证明安全**的清理：
- *   - 只认「目录里确实有 ApkStart.exe」的旧版本目录，且绝不碰当前正在运行的那个；
- *   - 只删除「InstallLocation 已经不存在」的注册表卸载项（那个本来就已经是死条目）；
+ * 这里只做**可证明安全**的清理: 
+ *   - 只认「目录里确实有 ApkStart.exe」的旧版本目录，且绝不碰当前Running的那个; 
+ *   - 只删除「InstallLocation 已经不存在」的注册表Uninstall项 (那个本来就已经是死条目); 
  *   - 只删自己更新缓存里的临时文件与指向不存在目标的开始菜单/桌面快捷方式。
  * 任何一步拿不准就跳过，并把原因如实返回给界面。
  */
@@ -44,11 +44,11 @@ function norm(p) {
  * 在若干「可能放程序的」目录里找旧版本目录。
  *
  * 以前只扫当前 exe 的父目录 + LOCALAPPDATA\Programs + ProgramFiles，结果用户把
- * 便携版解压到别的地方（E:\下载、桌面、某个项目目录）就永远扫不到 —— 这正是
- * 「其他文件夹里的旧版本清不掉」的原因。现在多路发现：
- *   - 常见安装位置；
- *   - 各磁盘根目录下的浅层（很多便携版直接丢在 D:\ApkStart-…）；
- *   - 桌面 / 开始菜单里现存快捷方式指向的真实 exe 所在目录（最准，用户装过就一定有）。
+ * 便携版解压到别的地方 (E:\下载, 桌面, 某个项目目录)就永远扫不到 —— 这正是
+ * 「其他文件夹里的旧版本清不掉」的原因。current多路发现: 
+ *   - 常见安装位置; 
+ *   - 各磁盘根目录下的浅层 (很多便携版直接丢在 D:\ApkStart-…); 
+ *   - 桌面 / 开始菜单里现存快捷方式指向的真实 exe 所在目录 (最准，用户装过就一定有)。
  */
 function candidateRoots(installDir) {
   const roots = new Set();
@@ -65,7 +65,7 @@ function candidateRoots(installDir) {
     add(path.join(home, 'Desktop'));
     add(path.join(home, 'Documents'));
   }
-  // 每个本地磁盘根目录（便携版常直接放盘根）
+  // 每个本地磁盘根目录 (便携版常直接放盘根)
   try {
     for (const drv of ['C:\\', 'D:\\', 'E:\\', 'F:\\', 'G:\\', 'H:\\']) {
       if (fs.existsSync(drv)) add(drv.replace(/\\+$/, ''));
@@ -75,9 +75,9 @@ function candidateRoots(installDir) {
 }
 
 /**
- * 从快捷方式（.lnk / .desktop）反查 ApkStart.exe 的真实所在目录。
- * 这是最可靠的发现手段：只要用户曾经创建过桌面图标或开始菜单项，目标路径就在里面，
- * 无论它被放在哪个盘、哪个深层文件夹。
+ * 从快捷方式 (.lnk / .desktop)反查 ApkStart.exe 的真实所在目录。
+ * 这是最可靠的发现手段: 只要用户曾经创建过桌面图标或开始菜单项，目标路径就在里面，
+ * 无论它被放在哪个盘, 哪个深层文件夹。
  */
 function rootsFromShortcuts() {
   const dirs = new Set();
@@ -119,7 +119,7 @@ function rootsFromShortcuts() {
   return [...dirs];
 }
 
-/** 旧版本程序目录：形如 ApkStart*，且里面有 ApkStart.exe，且不是当前安装目录 */
+/** 旧版本程序目录: 形如 ApkStart*，且里面有 ApkStart.exe，且不是当前安装目录 */
 function scanDirs(installDir) {
   const out = [];
   const seen = new Set();
@@ -135,7 +135,7 @@ function scanDirs(installDir) {
       kind: 'dir',
       path: full,
       size: dirSize(full),
-      note: '旧版本程序目录（含 ' + EXE + '）',
+      note: 'old program folder (contains ' + EXE + ')',
     });
   };
   for (const root of candidateRoots(installDir)) {
@@ -147,10 +147,10 @@ function scanDirs(installDir) {
       consider(path.join(root, e.name));
     }
   }
-  // 快捷方式反查到的目录：本身可能就是旧版本目录，或其父/子目录是
+  // 快捷方式反查到的目录: 本身可能就是旧版本目录，或其父/子目录是
   for (const d of rootsFromShortcuts()) {
     if (/^ApkStart/i.test(path.basename(d))) consider(d);
-    // 也看看它的同级（dist 下往往并排好几个版本目录）
+    // 也看看它的同级 (dist 下往往并排好几个版本目录)
     const parent = path.dirname(d);
     let sib = [];
     try { sib = fs.readdirSync(parent, { withFileTypes: true }); } catch (_) { continue; }
@@ -161,7 +161,7 @@ function scanDirs(installDir) {
   return out;
 }
 
-/** 注册表里指向已不存在目录的卸载项 */
+/** 注册表里指向已不存在目录的Uninstall项 */
 function scanRegistry() {
   const out = [];
   const roots = [
@@ -187,14 +187,14 @@ function scanRegistry() {
       const install = (loc || '').trim().replace(/^"|"$/g, '');
       const uninsPath = (unins || '').trim().replace(/^"|"$/g, '');
       const installMissing = install ? !fs.existsSync(install) : false;
-      // 只处理「明明已经没装、却还挂在应用列表里」的死条目
+      // 只Fix「明明已经没装, 却还挂在App列表里」的死条目
       const deadUninstaller = uninsPath && !fs.existsSync(uninsPath.split('"')[0]);
       if (!installMissing && !deadUninstaller) continue;
       out.push({
         kind: 'registry',
         path: key,
         size: 0,
-        note: `失效的卸载项${disp ? `：${String(disp).trim()}` : ''}`,
+        note: `stale uninstall entry${disp ? `: ${String(disp).trim()}` : ''}`,
       });
     }
   }
@@ -216,13 +216,13 @@ function scanTemp(dataDir) {
       const full = path.join(d, name);
       let size = 0;
       try { size = e.isDirectory() ? dirSize(full) : fs.statSync(full).size; } catch (_) { /* ignore */ }
-      out.push({ kind: 'temp', path: full, size, note: '更新下载的临时文件' });
+      out.push({ kind: 'temp', path: full, size, note: 'temporary update download files' });
     }
   }
   return out;
 }
 
-/** 旧/废弃的快速启动快照：default_boot 是早期版本留下的（一份 ram.img 约 3GB），
+/** 旧/废弃的快速启动快照: default_boot 是早期版本留下的 (一份 ram.img 约 3GB)，
  *  *.stale-* 是「删不掉就改名」的残留。当前快照名是 apkstart，绝不碰。 */
 function scanSnapshots(avdHome) {
   const out = [];
@@ -238,7 +238,7 @@ function scanSnapshots(avdHome) {
       kind: 'dir',
       path: full,
       size: dirSize(full),
-      note: e.name.startsWith('default_boot') ? '旧版遗留的快速启动快照' : '废弃的快照残留',
+      note: e.name.startsWith('default_boot') ? 'quick-boot snapshots left by an older version' : 'abandoned snapshot leftovers',
     });
   }
   return out;
@@ -270,21 +270,21 @@ function clean(items, { installDir }) {
   for (const it of items || []) {
     try {
       if (it.kind === 'dir') {
-        // 双保险：绝不删当前正在运行的目录
-        if (norm(it.path) === cur) { failed.push({ path: it.path, reason: '这是当前正在运行的版本' }); continue; }
-        if (!fs.existsSync(path.join(it.path, EXE))) { failed.push({ path: it.path, reason: '目录里没有 ' + EXE }); continue; }
+        // 双保险: 绝不删当前Running的目录
+        if (norm(it.path) === cur) { failed.push({ path: it.path, reason: 'this is the running version' }); continue; }
+        if (!fs.existsSync(path.join(it.path, EXE))) { failed.push({ path: it.path, reason: 'the folder has no ' + EXE }); continue; }
         if (rm(it.path)) { freed += it.size || 0; removed.push(it.path); }
-        else failed.push({ path: it.path, reason: '文件被占用（可能有窗口还开着）' });
+        else failed.push({ path: it.path, reason: 'file in use (a window may still be open)' });
       } else if (it.kind === 'registry') {
         const r = execFileSync('reg', ['delete', it.path, '/f'], { windowsHide: true, timeout: 10000 });
         void r;
         removed.push(it.path);
       } else if (it.kind === 'temp') {
         if (rm(it.path)) { freed += it.size || 0; removed.push(it.path); }
-        else failed.push({ path: it.path, reason: '文件被占用' });
+        else failed.push({ path: it.path, reason: 'file in use' });
       } else if (it.kind === 'shortcut') {
         if (rm(it.path)) removed.push(it.path);
-        else failed.push({ path: it.path, reason: '删除失败' });
+        else failed.push({ path: it.path, reason: 'delete failed' });
       }
     } catch (e) {
       failed.push({ path: it.path, reason: e.message });

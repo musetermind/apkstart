@@ -30,7 +30,7 @@ function chunk(type, data) {
   return Buffer.concat([len, body, crc]);
 }
 
-/** RGBA 像素（Uint8Array，长度 w*h*4）→ PNG Buffer */
+/** RGBA 像素 (Uint8Array，长度 w*h*4)→ PNG Buffer */
 function encodePng(width, height, rgba) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
@@ -54,7 +54,7 @@ function encodePng(width, height, rgba) {
   ]);
 }
 
-// ---------------- 极简绘制（4x 超采样抗锯齿） ----------------
+// ---------------- 极简绘制 (4x 超采样抗锯齿) ----------------
 
 function roundRectAlpha(x, y, w, h, r, px, py) {
   const cx = Math.min(Math.max(px, x + r), x + w - r);
@@ -74,7 +74,7 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
 }
 
 /**
- * 绘制 ApkStart 图标：深色圆角方块 + 安卓绿启动三角
+ * 绘制 ApkStart 图标: 深色圆角方块 + 安卓绿启动三角
  * @param {number} size 输出边长
  */
 function drawAppIcon(size = 256) {
@@ -85,7 +85,7 @@ function drawAppIcon(size = 256) {
   const pad = S * 0.06;
   const box = { x: pad, y: pad, w: S - pad * 2, h: S - pad * 2, r: S * 0.24 };
 
-  // 三角（播放键）
+  // 三角 (播放键)
   const tW = S * 0.30;
   const tH = S * 0.34;
   const tcx = S * 0.5 + S * 0.02;
@@ -101,7 +101,7 @@ function drawAppIcon(size = 256) {
       const inBox = roundRectAlpha(box.x, box.y, box.w, box.h, box.r, px, py);
       if (!inBox) continue;
 
-      // 背景渐变（对角）
+      // 背景渐变 (对角)
       const t = (x / S) * 0.6 + (y / S) * 0.4;
       let r = Math.round(20 + t * 14);
       let g = Math.round(26 + t * 18);

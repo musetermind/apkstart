@@ -2,7 +2,7 @@
 /**
  * 桌面快捷方式 + 多尺寸 ICO 生成
  *
- * ICO 直接用 Electron nativeImage 缩放并手写 ICO 容器（DIB 格式，全 Windows 版本兼容），
+ * ICO 直接用 Electron nativeImage 缩放并手写 ICO 容器 (DIB 格式，全 Windows 版本兼容)，
  * 不依赖任何第三方图像库，也不需要 ImageMagick。
  */
 const fs = require('fs');
@@ -20,13 +20,13 @@ function buildDib(bgra, size) {
   header.writeUInt32LE(0, 16);           // BI_RGB
   header.writeUInt32LE(size * size * 4, 20);
 
-  // XOR 位图：自下而上，行内 BGRA
+  // XOR 位图: 自下而上，行内 BGRA
   const xor = Buffer.alloc(size * size * 4);
   for (let y = 0; y < size; y++) {
     const srcRow = (size - 1 - y) * size * 4;
     bgra.copy(xor, y * size * 4, srcRow, srcRow + size * 4);
   }
-  // AND 掩码：1bpp，行按 4 字节对齐，全 0（交给 alpha 通道）
+  // AND 掩码: 1bpp，行按 4 字节对齐，全 0 (交给 alpha 通道)
   const maskRow = Math.ceil(size / 32) * 4;
   const mask = Buffer.alloc(maskRow * size, 0);
   return Buffer.concat([header, xor, mask]);
@@ -45,7 +45,7 @@ function pngToIco(pngBuffer) {
   for (const s of ICO_SIZES) {
     const img = base.getSize().width >= s
       ? base.resize({ width: s, height: s, quality: 'best' })
-      : base.resize({ width: s, height: s, quality: 'best' }); // 小图放大也比缺尺寸好
+      : base.resize({ width: s, height: s, quality: 'best' }); // Small图放Large也比缺尺寸好
     const dib = buildDib(img.toBitmap(), s);
     images.push({ size: s, data: dib });
   }
@@ -77,8 +77,8 @@ function safeFileName(name) {
 }
 
 /**
- * PNG-in-ICO：Vista 起 ICO 条目允许直接内嵌 PNG，不用重编码、不丢 alpha。
- * APK 图标常是 WebP/大尺寸 PNG，老的 DIB 路线在这里会整包失败。
+ * PNG-in-ICO: Vista 起 ICO 条目允许直接内嵌 PNG，不用重编码, 不丢 alpha。
+ * APK 图标常是 WebP/Large尺寸 PNG，老的 DIB 路线在这里会整包失败。
  */
 function pngBytesToIco(png) {
   if (!Buffer.isBuffer(png) || png.length < 24 || png.toString('ascii', 1, 4) !== 'PNG') return null;
@@ -101,9 +101,9 @@ function pngBytesToIco(png) {
 }
 
 /**
- * 任意 APK 图标 → ICO。三级兜底，保证快捷方式永远带图标：
- *  1) Electron 能直接解（真 PNG/JPEG）→ 多尺寸 DIB ICO；
- *  2) decode 回调（渲染进程用 Chromium 解 WebP）→ PNG-in-ICO；
+ * 任意 APK 图标 → ICO。三级兜底，保证快捷方式永远带图标: 
+ *  1) Electron 能直接解 (真 PNG/JPEG)→ 多尺寸 DIB ICO; 
+ *  2) decode 回调 (渲染进程用 Chromium 解 WebP)→ PNG-in-ICO; 
  *  3) 品牌占位图标 → PNG-in-ICO。
  */
 async function iconToIco(raw, { decode, onFallback } = {}) {
@@ -137,8 +137,8 @@ async function iconToIco(raw, { decode, onFallback } = {}) {
 }
 
 /**
- * 快捷方式的扩展名：Windows 是 .lnk，Linux（FydeOS / ChromeOS 的 Linux 子系统、
- * 各种发行版）是 .desktop（freedesktop 规范）。
+ * 快捷方式的扩展名: Windows 是 .lnk，Linux (FydeOS / ChromeOS 的 Linux 子系统, 
+ * 各种发行版)是 .desktop (freedesktop 规范)。
  */
 function shortcutExt() {
   return process.platform === 'win32' ? '.lnk' : '.desktop';
@@ -147,9 +147,9 @@ function shortcutExt() {
 /**
  * 写一个 freedesktop .desktop 启动项。
  *
- * 和 Windows 的 .lnk 差别很大，几个必须注意的点：
- *  - Exec 里的路径带空格要加双引号，且 .desktop 规范里 `%` 是字段码，必须转义成 `%%`；
- *  - 文件必须 chmod +x，否则很多桌面环境会当成文档而不是启动器；
+ * 和 Windows 的 .lnk 差别很Large，几个必须注意的点: 
+ *  - Exec 里的路径带空格要加双引号，且 .desktop 规范里 `%` 是字段码，必须转义成 `%%`; 
+ *  - 文件必须 chmod +x，否则很多桌面环境会当成文档而不是启动器; 
  *  - 图标只能用 PNG/SVG 的绝对路径，ICO 在 Linux 上无效。
  *
  * @param {object} opt { shortcutPath, target, args, iconPngPath, description }
@@ -159,7 +159,7 @@ function writeDesktopEntry(opt) {
   try {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   } catch (e) {
-    throw new Error(`快捷方式目录不可写：${dir}（${e.message}）`);
+    throw new Error(`shortcut folder is not writable: ${dir} (${e.message})`);
   }
   const quote = (s) => `"${String(s).replace(/(["\\$`])/g, '\\$1').replace(/%/g, '%%')}"`;
   // args 是按 shell 习惯拼好的字符串，这里拆成单个参数再各自加引号
@@ -182,7 +182,7 @@ function writeDesktopEntry(opt) {
   fs.writeFileSync(opt.shortcutPath, body, { encoding: 'utf8', mode: 0o755 });
   try { fs.chmodSync(opt.shortcutPath, 0o755); } catch (_) { /* 某些文件系统不支持，忽略 */ }
   if (!fs.existsSync(opt.shortcutPath)) {
-    throw new Error(`快捷方式未落盘：${opt.shortcutPath}`);
+    throw new Error(`the shortcut was not written: ${opt.shortcutPath}`);
   }
   return opt.shortcutPath;
 }
@@ -190,14 +190,14 @@ function writeDesktopEntry(opt) {
 /**
  * 生成桌面快捷方式
  *
- * writeShortcutLink 返回 true 并不代表文件真的落盘了：安全软件拦截、
+ * writeShortcutLink 返回 true 并不代表文件真的落盘了: 安全软件拦截, 
  * 桌面目录被重定向到未登录的网盘时都可能「成功但没文件」。所以写完必须
  * 回读一次，保证调用方拿到的路径是真实存在的入口。
  *
  * @param {object} opt { shortcutPath, target, args, iconIcoPath, description, cwd }
  */
 function writeShortcut(opt) {
-  // Linux / FydeOS：走 .desktop，不用 Windows 的 COM 接口
+  // Linux / FydeOS: 走 .desktop，不用 Windows 的 COM 接口
   if (process.platform !== 'win32') {
     return writeDesktopEntry({
       shortcutPath: opt.shortcutPath,
@@ -212,7 +212,7 @@ function writeShortcut(opt) {
   try {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   } catch (e) {
-    throw new Error(`快捷方式目录不可写：${dir}（${e.message}）`);
+    throw new Error(`shortcut folder is not writable: ${dir} (${e.message})`);
   }
   if (fs.existsSync(opt.shortcutPath)) {
     try { fs.unlinkSync(opt.shortcutPath); } catch (_) { /* ignore */ }
@@ -226,9 +226,9 @@ function writeShortcut(opt) {
     cwd: opt.cwd || path.dirname(opt.target),
     appUserModelId: opt.appUserModelId,
   });
-  if (!ok) throw new Error('创建快捷方式失败（writeShortcutLink 返回 false）');
+  if (!ok) throw new Error('failed to create the shortcut (writeShortcutLink returned false)');
   if (!fs.existsSync(opt.shortcutPath)) {
-    throw new Error(`快捷方式未落盘：${opt.shortcutPath}`);
+    throw new Error(`the shortcut was not written: ${opt.shortcutPath}`);
   }
   return opt.shortcutPath;
 }

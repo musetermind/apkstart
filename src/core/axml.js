@@ -25,7 +25,7 @@ const ANDROID_NS = 'http://schemas.android.com/apk/res/android';
 
 function readStringPool(buf, start) {
   const type = buf.readUInt16LE(start);
-  if (type !== RES_STRING_POOL_TYPE) throw new Error('字符串池类型错误');
+  if (type !== RES_STRING_POOL_TYPE) throw new Error('wrong string pool type');
   const headerSize = buf.readUInt16LE(start + 2);
   const chunkSize = buf.readUInt32LE(start + 4);
   const count = buf.readUInt32LE(start + 8);
@@ -43,7 +43,7 @@ function readStringPool(buf, start) {
   for (let i = 0; i < count; i++) {
     let p = base + offsets[i];
     if (isUtf8) {
-      // utf16 长度（1~2 字节）
+      // utf16 长度 (1~2 字节)
       let len = buf[p++];
       if (len & 0x80) { len = ((len & 0x7f) << 8) | buf[p++]; }
       // utf8 字节长度
@@ -67,7 +67,7 @@ function readStringPool(buf, start) {
 function parseAxml(buffer) {
   const buf = buffer;
   if (buf.readUInt16LE(0) !== RES_XML_TYPE) {
-    throw new Error('不是 Android 二进制 XML（可能被混淆或非法 APK）');
+    throw new Error('not Android binary XML (obfuscated or invalid APK)');
   }
   let pos = buf.readUInt16LE(2); // headerSize
   const total = buf.readUInt32LE(4);
@@ -102,7 +102,7 @@ function parseAxml(buffer) {
       const attrCount = buf.readUInt16LE(pos + 28);
 
       const node = { name: pool[nameIdx], attrs: [], children: [], parent: stack[stack.length - 1] };
-      // attributeStart 相对 ResXMLTree_attrExt（chunk + 16）起算
+      // attributeStart 相对 ResXMLTree_attrExt (chunk + 16)起算
       const attrBase = pos + 16 + attrStart;
       for (let i = 0; i < attrCount; i++) {
         const a = attrBase + i * attrSize;
@@ -145,7 +145,7 @@ function parseAxml(buffer) {
   }
 
   const el = root.children.find((c) => c.name === 'manifest') || root.children[0];
-  if (!el) throw new Error('APK 清单为空');
+  if (!el) throw new Error('empty APK manifest');
   return el;
 }
 

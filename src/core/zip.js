@@ -1,13 +1,13 @@
 'use strict';
 /**
- * 极简 ZIP 读取器（仅依赖 Node 内置 zlib）
- * 只解析中央目录，按需解压单个条目，避免大 APK 全量解压撑爆内存。
+ * 极简 ZIP 读取器 (仅依赖 Node 内置 zlib)
+ * 只解析中央目录，按需解压单个条目，避免Large APK 全量解压撑爆内存。
  *
- * 注意：本文件只做「读」，不做「写」。两处「大小」相关的不变量：
- *  - 单个 Buffer 有上限（Node 约 2GB），所以 GB 级条目一律走 ZipFile + pipeTo；
+ * 注意: 本文件只做「读」，不做「写」。两处「LargeSmall」相关的不变量: 
+ *  - 单个 Buffer 有上限 (Node 约 2GB)，所以 GB 级条目一律走 ZipFile + pipeTo; 
  *  - ZIP 的传统 EOCD 用 16/32 位存条目数与偏移，超过就进位成 0xffff/0xffffffff，
- *    真正的值在 Zip64 EOCD（0x06064b50）与 Zip64 扩展字段（id=0x0001）里。
- *    两条路径都必须识别，否则大镜像包会被「静默截断条目」或直接越界。
+ *    真正的值在 Zip64 EOCD (0x06064b50)与 Zip64 扩展字段 (id=0x0001)里。
+ *    两条路径都必须识别，否则Large镜像包会被「静默截断条目」或直接越界。
  */
 const zlib = require('zlib');
 const fs = require('fs');
@@ -20,15 +20,15 @@ const ZIP64_EOCD_SIG = 0x06064b50;
 const ZIP64_LOC_SIG = 0x07064b50;
 const MAX32 = 0xffffffff;
 const MAX16 = 0xffff;
-// read() 单条目上限：超过就要求调用方走 pipeTo（流式），避免整块进内存
+// read() 单条目上限: 超过就要求调用方走 pipeTo (流式)，避免整块进内存
 const MAX_READ = 256 * 1024 * 1024;
 
-/** 把 BigInt 偏移安全地转成 Number（ZIP 不可能大过 2^53 字节） */
+/** 把 BigInt 偏移安全地转成 Number (ZIP 不可能Large过 2^53 字节) */
 function toNum(v) { return typeof v === 'bigint' ? Number(v) : v; }
 
 /**
- * 解析 Zip64 扩展字段（0x0001），补全中央目录里被置成 0xffffffff 的字段。
- * 字段顺序固定：未压缩大小、压缩大小、本地头偏移、起始磁盘号；只出现「被置位」的那些。
+ * 解析 Zip64 扩展字段 (0x0001)，补全中央目录里被置成 0xffffffff 的字段。
+ * 字段顺序固定: 未压缩LargeSmall, 压缩LargeSmall, 本地头偏移, 起始磁盘号; 只出现「被置位」的那些。
  * @param {Buffer} extra 中央目录项的扩展字段
  * @param {{uncompSize:number, compSize:number, localOffset:number}} fields
  */
@@ -60,10 +60,10 @@ function applyZip64Extra(extra, fields) {
 }
 
 /**
- * 从 EOCD 位置解出条目数 / 中央目录大小 / 中央目录偏移，自动跟进 Zip64。
+ * 从 EOCD 位置解出条目数 / 中央目录LargeSmall / 中央目录偏移，Automatic跟进 Zip64。
  * @param {Buffer} buf 包含 EOCD 的缓冲区
  * @param {number} eocd EOCD 在 buf 内的下标
- * @param {number} base buf[0] 对应的文件绝对偏移（ZipFile 的尾部窗口用）
+ * @param {number} base buf[0] 对应的文件绝对偏移 (ZipFile 的尾部窗口用)
  * @returns {{total:number, cdSize:number, cdOffset:number, eocdAbs:number}}
  */
 function readEndOfCentralDirectory(buf, eocd, base) {
@@ -104,7 +104,7 @@ class ZipArchive {
     for (let i = buf.length - 22; i >= maxScan; i--) {
       if (buf.readUInt32LE(i) === EOCD_SIG) { eocd = i; break; }
     }
-    if (eocd < 0) throw new Error('不是有效的 ZIP/APK 文件（未找到 EOCD）');
+    if (eocd < 0) throw new Error('not a valid ZIP/APK file (no EOCD found)');
 
     const { total, cdOffset } = readEndOfCentralDirectory(buf, eocd, 0);
     let offset = cdOffset;
@@ -145,18 +145,18 @@ class ZipArchive {
     const e = this.entries.get(name);
     if (!e) return null;
     const buf = this.buf;
-    if (e.localOffset + 30 > buf.length) throw new Error(`本地文件头越界: ${name}`);
+    if (e.localOffset + 30 > buf.length) throw new Error(`local file header out of bounds: ${name}`);
     if (buf.readUInt32LE(e.localOffset) !== LOC_SIG) {
-      throw new Error(`本地文件头损坏: ${name}`);
+      throw new Error(`local file header corrupt: ${name}`);
     }
     const nameLen = buf.readUInt16LE(e.localOffset + 26);
     const extraLen = buf.readUInt16LE(e.localOffset + 28);
     const start = e.localOffset + 30 + nameLen + extraLen;
-    if (start + e.compSize > buf.length) throw new Error(`条目数据越界: ${name}`);
+    if (start + e.compSize > buf.length) throw new Error(`entry data out of bounds: ${name}`);
     const raw = buf.subarray(start, start + e.compSize);
     if (e.method === 0) return Buffer.from(raw);
     if (e.method === 8) return zlib.inflateRawSync(raw);
-    throw new Error(`不支持的压缩方式 ${e.method}: ${name}`);
+    throw new Error(`unsupported compression method ${e.method}: ${name}`);
   }
 
   /** 列出匹配某个前缀/正则的条目名 */
@@ -166,15 +166,15 @@ class ZipArchive {
 
   /**
    * 流式解压单个条目到可写流。
-   * system.img 这类 GB 级条目无法整块 inflate 进内存（会撞上 Node 的 2GB 单 Buffer 上限），
+   * system.img 这类 GB 级条目无法整块 inflate 进内存 (会撞上 Node 的 2GB 单 Buffer 上限)，
    * 必须边解压边落盘。
    */
   pipeTo(name, dest) {
     const e = this.entries.get(name);
-    if (!e) return Promise.reject(new Error(`条目不存在: ${name}`));
+    if (!e) return Promise.reject(new Error(`entry not found: ${name}`));
     const buf = this.buf;
     if (buf.readUInt32LE(e.localOffset) !== LOC_SIG) {
-      return Promise.reject(new Error(`本地文件头损坏: ${name}`));
+      return Promise.reject(new Error(`local file header corrupt: ${name}`));
     }
     const nameLen = buf.readUInt16LE(e.localOffset + 26);
     const extraLen = buf.readUInt16LE(e.localOffset + 28);
@@ -190,7 +190,7 @@ class ZipArchive {
         dest.end(raw);
         return;
       }
-      if (e.method !== 8) return done(new Error(`不支持的压缩方式 ${e.method}: ${name}`));
+      if (e.method !== 8) return done(new Error(`unsupported compression method ${e.method}: ${name}`));
 
       const inflater = zlib.createInflateRaw();
       // 分片喂入，避免一次性把 GB 数据塞进 zlib 缓冲区
@@ -216,8 +216,8 @@ class ZipArchive {
 }
 
 /**
- * 文件版 ZIP 读取器：只把尾部中央目录读进内存，条目按需从 fd 流式读。
- * 用于 emulator / 系统镜像这类 GB 级安装包——旧版 fs.readFileSync 整包读会
+ * 文件版 ZIP 读取器: 只把尾部中央目录读进内存，条目按需从 fd 流式读。
+ * 用于 emulator / System images这类 GB 级安装包——旧版 fs.readFileSync 整包读会
  * 在低内存机器上直接 OOM，表现为「下载完了却装不上」。
  */
 class ZipFile {
@@ -240,7 +240,7 @@ class ZipFile {
     if (n > 0) {
       let got = 0;
       while (got < n) {
-        // readSync 可能短读（尤其大块），必须循环到读满
+        // readSync 可能短读 (尤其Large块)，必须循环到读满
         const r = fs.readSync(this.fd, b, got, n - got, pos + got);
         if (r <= 0) break;
         got += r;
@@ -250,7 +250,7 @@ class ZipFile {
   }
 
   _parse() {
-    if (this.size < 22) throw new Error('不是有效的 ZIP/APK 文件（文件过小）');
+    if (this.size < 22) throw new Error('not a valid ZIP/APK file (file too small)');
     const tailLen = Math.min(this.size, 22 + 65557 + 4096);
     const tailBase = this.size - tailLen;
     const tail = this._readAt(tailBase, tailLen);
@@ -258,19 +258,19 @@ class ZipFile {
     for (let i = tail.length - 22; i >= 0; i -= 1) {
       if (tail.readUInt32LE(i) === EOCD_SIG) { eocd = i; break; }
     }
-    if (eocd < 0) throw new Error('不是有效的 ZIP/APK 文件（未找到 EOCD）');
+    if (eocd < 0) throw new Error('not a valid ZIP/APK file (no EOCD found)');
 
     const { total, cdSize, cdOffset, eocdAbs } = readEndOfCentralDirectory(tail, eocd, tailBase);
     if (cdOffset + cdSize > this.size) {
-      throw new Error('ZIP 中央目录偏移异常');
+      throw new Error('bad ZIP central directory offset');
     }
 
     let cd = tail;
     let cdBase = tailBase;
     if (cdOffset < tailBase || cdOffset + cdSize > eocdAbs) {
-      // 中央目录不在尾部缓冲里（超大注释 / 多分卷），按声明大小精确读一段
+      // 中央目录不在尾部缓冲里 (超Large注释 / 多分卷)，按声明LargeSmall精确读一段
       const len = Math.min(cdSize, 256 * 1024 * 1024);
-      if (len <= 0) throw new Error('ZIP 中央目录偏移异常');
+      if (len <= 0) throw new Error('bad ZIP central directory offset');
       cd = this._readAt(cdOffset, len);
       cdBase = cdOffset;
     }
@@ -310,9 +310,9 @@ class ZipFile {
 
   _range(name) {
     const e = this.entries.get(name);
-    if (!e) throw new Error(`条目不存在: ${name}`);
+    if (!e) throw new Error(`entry not found: ${name}`);
     const head = this._readAt(e.localOffset, 30);
-    if (head.length < 30 || head.readUInt32LE(0) !== LOC_SIG) throw new Error(`本地文件头损坏: ${name}`);
+    if (head.length < 30 || head.readUInt32LE(0) !== LOC_SIG) throw new Error(`local file header corrupt: ${name}`);
     const nameLen = head.readUInt16LE(26);
     const extraLen = head.readUInt16LE(28);
     const start = e.localOffset + 30 + nameLen + extraLen;
@@ -321,16 +321,16 @@ class ZipFile {
 
   read(name) {
     const { e, start } = this._range(name);
-    // read() 会把整个条目解到内存：给一个明确上限，避免未来某个调用点顺手
-    // 拿来读 GB 级镜像（那正是 issue #21 里「大包必炸」的形态）。
+    // read() 会把整个条目解到内存: 给一个明确上限，避免未来某个调用点顺手
+    // 拿来读 GB 级镜像 (那正是 issue #21 里「Large包必炸」的形态)。
     if (e.compSize > MAX_READ) {
-      throw new Error(`条目过大（${(e.compSize / 1048576).toFixed(0)}MB），请改用 pipeTo: ${name}`);
+      throw new Error(`entry too large (${(e.compSize / 1048576).toFixed(0)}MB), use pipeTo instead: ${name}`);
     }
     const raw = this._readAt(start, e.compSize);
-    if (raw.length < e.compSize) throw new Error(`条目数据被截断: ${name}`);
+    if (raw.length < e.compSize) throw new Error(`entry data truncated: ${name}`);
     if (e.method === 0) return raw;
     if (e.method === 8) return zlib.inflateRawSync(raw);
-    throw new Error(`不支持的压缩方式 ${e.method}: ${name}`);
+    throw new Error(`unsupported compression method ${e.method}: ${name}`);
   }
 
   pipeTo(name, dest) {
@@ -342,7 +342,7 @@ class ZipFile {
       dest.on('error', done);
       dest.on('finish', () => done(null));
       if (e.compSize === 0) { dest.end(); return undefined; }
-      if (e.method !== 0 && e.method !== 8) return done(new Error(`不支持的压缩方式 ${e.method}: ${name}`));
+      if (e.method !== 0 && e.method !== 8) return done(new Error(`unsupported compression method ${e.method}: ${name}`));
       const src = fs.createReadStream(null, {
         fd: this.fd, autoClose: false, start, end: Math.max(start, end),
       });
@@ -356,13 +356,13 @@ class ZipFile {
 }
 
 /**
- * 把 ZIP 条目名安全解析到 destDir 下，挡住 zip-slip（issue #2 P0-4）。
- * 恶意包里的 "../evil"、绝对路径、盘符、"C:\..."、UNC 都必须在写盘前拒绝。
+ * 把 ZIP 条目名安全解析到 destDir 下，挡住 zip-slip (issue #2 P0-4)。
+ * 恶意包里的 "../evil", 绝对路径, 盘符, "C:\...", UNC 都必须在写盘前拒绝。
  * 返回 null 表示该条目不可信，调用方应跳过。
  */
 function resolveZipEntry(destDir, name) {
   if (typeof name !== 'string' || !name) return null;
-  // 统一正斜杠后判断：反斜杠在 Windows 上同样是路径分隔符
+  // 统一正斜杠后判断: 反斜杠在 Windows 上同样是路径分隔符
   const normalized = name.replace(/\\/g, '/');
   if (normalized.startsWith('/') || /^[A-Za-z]:/.test(normalized) || normalized.includes('\0')) return null;
   const segments = normalized.split('/');

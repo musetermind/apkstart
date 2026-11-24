@@ -1,8 +1,8 @@
 'use strict';
-/* ApkStart 开机动画脚本：接收主进程的进度更新，控制淡出 */
+/* ApkStart 开机动画脚本: 接收主进程的进度更新，控制淡出 */
 
 const api = window.apkstartSplash;
-if (!api) { /* preload 未注入时静默退出 */ }
+if (!api) { /* preload 未注入时静默Quit */ }
 
 const $ = (id) => document.getElementById(id);
 
@@ -16,17 +16,17 @@ Promise.all([
 ]).then(([first, bundled]) => {
   if (!first || !$('firstRun')) return;
   $('firstRun').hidden = false;
-  // 内置运行时（完整版安装包 / 微软商店 MSIX 版）：一个字都不该提「下载」。
+  // 内置Runtime (完整版安装包 / 微软商店 MSIX 版): 一个字都不该提「下载」。
   // 用户抱怨的就是「装了 850MB 还在下镜像」，实际那只是把包里的压缩镜像
   // 展开到用户目录，不需要联网。
   if (bundled) {
-    if ($('firstRunTitle')) $('firstRunTitle').textContent = '首次启动 · 本地准备中（无需联网）';
+    if ($('firstRunTitle')) $('firstRunTitle').textContent = 'First run · preparing locally (no network needed)';
     if ($('firstRunList')) {
       $('firstRunList').innerHTML = [
-        '<li>运行时组件已随安装包内置，不再下载任何东西</li>',
-        '<li>把系统镜像展开到用户目录（约 1 分钟，只需一次）</li>',
-        '<li>准备硬件加速与中文输入法</li>',
-        '<li>完成后双击 APK 或桌面图标即可秒开应用</li>',
+        '<li>Runtime components are bundled with the installer, nothing is downloaded</li>',
+        '<li>Expand the system image into your user folder (about 1 minute, only once)</li>',
+        '<li>Prepare hardware acceleration and the Chinese IME</li>',
+        '<li>After that, double-click an APK or desktop icon to open apps instantly</li>',
       ].join('');
     }
   }
@@ -43,7 +43,7 @@ api?.onProgress?.((p) => {
   }
 });
 
-// 完成 → 淡出
+// Finish → 淡出
 api?.onDone?.(() => {
   const splash = $('splash');
   if (splash) {

@@ -46,18 +46,18 @@ contextBridge.exposeInMainWorld('apkstart', {
   dataInfo: () => invoke('runtime:dataInfo'),
   setDataSize: (gb) => invoke('runtime:setDataSize', gb),
   resources: () => invoke('engine:resources'),
-  // 本机体检 / 自动配置
+  // 本机体检 / Automatic配置
   preflightRun: () => invoke('preflight:run'),
   preflightApply: () => invoke('preflight:apply'),
-  // 自动检测（自动 debug）：定时采集 + 判定，产出按分类归组的问题清单
+  // Automatic检测 (Automatic debug): 定时采集 + 判定，产出按分类归组的问题清单
   autodebugRun: () => invoke('autodebug:run'),
   autodebugState: () => invoke('autodebug:state'),
   autodebugConfig: (patch) => invoke('autodebug:config', patch || {}),
-  // 自动检测的修复动作
+  // Automatic检测的Fix动作
   clearOrphans: () => invoke('app:clearOrphans'),
   clearSnapshot: () => invoke('app:clearSnapshot'),
   restartRuntime: () => invoke('runtime:restart'),
-  // 驱动（兼容补丁）：列清单 / 导入 / 打开目录 / 导出本机模板 / 启用停用
+  // 驱动 (兼容补丁): 列清单 / 导入 / Open目录 / Export this PC template / 启用停用
   driversList: () => invoke('drivers:list'),
   driversImport: () => invoke('drivers:import'),
   driversOpenFolder: () => invoke('drivers:openFolder'),
@@ -85,7 +85,7 @@ contextBridge.exposeInMainWorld('apkstart', {
   installAehd: () => invoke('provision:installAehd'),
   enableAccel: () => invoke('provision:enableAccel'),
   enableVirtualization: () => invoke('provision:enableVirtualization'),
-  // 打开「启用或关闭 Windows 功能」对话框（商店版只能引导用户自己去勾选）
+  // Open「启用或Close Windows 功能」对话框 (商店版只能引导用户自己去勾choose)
   openWindowsFeatures: () => invoke('provision:openWindowsFeatures'),
   downloadIso: () => invoke('provision:downloadIso'),
   createDisk: (gb) => invoke('provision:createDisk', gb),
@@ -97,7 +97,7 @@ contextBridge.exposeInMainWorld('apkstart', {
   removeSelf: () => invoke('app:removeSelf'),
   setSharedDir: (dir) => invoke('settings:setSharedDir', dir),
 
-  // 在线更新（GitHub Releases）
+  // 在线更新 (GitHub Releases)
   updateCheck: (opts) => invoke('app:updateCheck', opts || {}),
   updateApply: () => invoke('app:updateApply'),
   updateCancel: () => invoke('app:updateCancel'),
@@ -114,7 +114,7 @@ contextBridge.exposeInMainWorld('apkstart', {
   openSharedDir: () => invoke('share:open'),
 
   openExternal: (url) => invoke('shell:open', url),
-  // 0.6.2 内置手册：传 { topic } / { issue } / { error } 都会定位到对应章节
+  // 0.6.2 内置手册: 传 { topic } / { issue } / { error } 都会定位到对应章节
   openManual: (payload) => invoke('manual:open', payload || {}),
   winMinimize: () => invoke('window:minimize'),
   winMaximize: () => invoke('window:maximize'),
@@ -122,7 +122,7 @@ contextBridge.exposeInMainWorld('apkstart', {
   winHide: () => invoke('window:hide'),
   bringAppToFront: () => invoke('app:foreground'),
 
-  // 应用窗口（只有 旋转 / 最小化 / 最大化 / 关闭）用到的接口
+  // App windows (只有 旋转 / Minimize / Maximize / Close)用到的接口
   shell: {
     state: () => invoke('shell:state'),
     minimize: () => invoke('shell:minimize'),
@@ -139,7 +139,7 @@ contextBridge.exposeInMainWorld('apkstart', {
     },
   },
 
-  // 安卓系统设置（WiFi / 音量 / 显示 / 动画 / 权限 …）
+  // 安卓系统Settings (WiFi / 音量 / 显示 / 动画 / 权限 …)
   android: {
     status: () => invoke('android:status'),
     set: (key, value) => invoke('android:set', { key, value }),
@@ -149,7 +149,7 @@ contextBridge.exposeInMainWorld('apkstart', {
     grantAll: (pkg) => invoke('android:grantAll', pkg),
   },
 
-  // 按键映射（游戏键盘→触屏）
+  // 按键映射 (游戏键盘→触屏)
   keymap: {
     getPresets: () => invoke('keymap:getPresets'),
     getMap: (pkg) => invoke('keymap:getMap', pkg),

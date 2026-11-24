@@ -1,24 +1,24 @@
 'use strict';
 /**
- * 驱动（兼容补丁）扩展模块。
+ * 驱动 (兼容补丁)扩展模块。
  *
- * 背景：ApkStart 用的是官方 emulator + 固定镜像，但「能不能跑起来」非常吃机器：
- * 老显卡的 GLES 只到 3.1、没有 WHPX 只能走 TCG、某些核显 + 老驱动一开 host 渲染就崩……
+ * 背景: ApkStart 用的是官方 emulator + 固定镜像，但「能不能跑起来」非常吃机器: 
+ * 老显卡的 GLES 只到 3.1, 没有 WHPX 只能走 TCG, 某些Integrated GPU + 老驱动一开 host 渲染就崩……
  * 这些差异没法靠一份默认参数覆盖所有机器，而发版周期又跟不上用户的机器型号。
  *
- * 所以把它做成**数据驱动**的扩展：一个驱动就是一份 JSON，声明「我匹配哪些机器」
- * + 「匹配上以后改哪些启动参数」。用户可以自己写、自己导入、互相分享，不需要改代码。
+ * 所以把它做成**数据驱动**的扩展: 一个驱动就是一份 JSON，声明「我匹配哪些机器」
+ * + 「匹配上以后改哪些启动参数」。用户可以自己写, 自己导入, 互相分享，不需要改代码。
  *
- * 设计上的三条硬约束：
- *   1. **只认 JSON，不执行任何代码**。没有 require / eval / 脚本钩子 —— 驱动文件
- *      可以从网上下载、可以互相传，绝不能因此获得在本机执行任意代码的能力。
- *   2. **白名单**。能改的只有启动参数里明确列出的那些：`-gpu=…`、`-accel=…`、
- *      少量 config.ini 键、少量环境变量。`-wipe-data`、`-datadir`、`-sysdir`、
+ * 设计上的三条硬约束: 
+ *   1. **只认 JSON，run no code at all**。没有 require / eval / 脚本钩子 —— 驱动文件
+ *      可以从网上下载, 可以互相传，绝不能因此获得在本机执行任意代码的能力。
+ *   2. **白名单**。能改的只有启动参数里明确列出的那些: `-gpu=…`, `-accel=…`, 
+ *      少量 config.ini 键, 少量环境变量。`-wipe-data`, `-datadir`, `-sysdir`, 
  *      `disk.dataPartition.size` 这类会毁数据 / 改落点的键一律拒绝。
- *   3. **可预期**。匹配不上就不生效；多个驱动同时命中时按 `priority` 从小到大叠加，
- *      后应用的覆盖前面的；每次开机把「用了哪些驱动」写进日志和设置页。
+ *   3. **可预期**。匹配不上就不生效; 多个驱动同时命中时按 `priority` 从Small到Large叠加，
+ *      后App的覆盖前面的; 每次开机把「用了哪些驱动」写进logs和Settings页。
  *
- * 文件格式见 docs/drivers.md，内置示例在 src/drivers/。
+ * 文件格式见 docs/drivers.md，Built-in examples在 src/drivers/。
  */
 
 const fs = require('fs');
@@ -28,7 +28,7 @@ const DRIVER_FORMAT = 'apkstart-driver/1';
 const MAX_DRIVER_BYTES = 256 * 1024;
 const MAX_DRIVERS = 200;
 
-/** 驱动能改的启动参数：`-flag=value` 形式，value 必须匹配白名单正则 */
+/** 驱动能改的启动参数: `-flag=value` 形式，value 必须匹配白名单正则 */
 const ARG_RULES = {
   '-gpu': /^(auto|host|swiftshader|swiftshader_indirect|swangle|software|angle|angle_indirect|mesa)$/,
   '-accel': /^(auto|off|on|whpx|hax|haxm|aehd|tcg)$/,
@@ -38,7 +38,7 @@ const ARG_RULES = {
   '-qemu': /^-?[A-Za-z0-9_+=,.:/\-]{1,120}$/,
 };
 
-/** 只允许「开关型」参数（不带值） */
+/** 只允许「开关型」参数 (不带值) */
 const FLAG_ONLY = new Set([
   '-no-audio',
   '-no-boot-anim',
@@ -49,17 +49,17 @@ const FLAG_ONLY = new Set([
 ]);
 
 /**
- * 明确拒绝的参数：会删数据、改落点、绕过我们的端口/AVD 管理。
+ * 明确拒绝的参数: 会删数据, 改落点, 绕过我们的端口/AVD 管理。
  * 单独列出来是为了在报错时说清楚「为什么不行」，而不是只说「不在白名单里」。
  */
 const FORBIDDEN_ARGS = {
-  '-wipe-data': '会清空用户已装应用与存档',
-  '-datadir': '会改 AVD 落点，破坏多实例隔离',
-  '-sysdir': '会改系统镜像来源',
-  '-partition-size': '会改数据分区大小，请走设置页',
-  '-avd': 'AVD 名由 ApkStart 管理',
-  '-port': '端口由 ApkStart 动态分配',
-  '-http-proxy': '代理请走系统设置',
+  '-wipe-data': 'Wipes installed apps and saves',
+  '-datadir': 'Changes where the AVD lives, breaking multi-instance isolation',
+  '-sysdir': 'Changes the system image source',
+  '-partition-size': 'Changes the data partition size; use the Settings page instead',
+  '-avd': 'ApkStart manages the AVD name',
+  '-port': 'ApkStart assigns the port dynamically',
+  '-http-proxy': 'Use the system proxy settings instead',
 };
 
 /** 驱动能改的 config.ini 键 */
@@ -86,7 +86,7 @@ const ENV_NAME_RULES = [
   /^EMUGL_[A-Z0-9_]{2,40}$/,
 ];
 
-/** match 里允许出现的键（多一个都算错，避免用户以为自己写了但没生效） */
+/** match 里允许出现的键 (多一个都算错，避免用户以为自己写了但没生效) */
 const MATCH_KEYS = new Set([
   'any', 'platform', 'arch', 'gpuVendor', 'gpuName', 'cpuVendor',
   'osBuild', 'totalMB', 'cores', 'accel', 'emulatorVersion',
@@ -96,7 +96,7 @@ const EFFECT_KEYS = new Set([
   'gpuMode', 'forceTcg', 'emulatorArgs', 'configIni', 'env', 'notes',
 ]);
 
-// ---------------- 小工具 ----------------
+// ---------------- Small工具 ----------------
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -109,7 +109,7 @@ function asArray(v) {
   return Array.isArray(v) ? v : [v];
 }
 
-/** 编译用户写的正则：长度与语法都要能兜住，编译失败返回 null（校验阶段会报错） */
+/** 编译用户写的正则: 长度与语法都要能兜住，编译失败返回 null (校验阶段会报错) */
 function safeRegex(pattern) {
   const s = String(pattern || '');
   if (!s || s.length > 200) return null;
@@ -155,11 +155,11 @@ function inRange(value, range) {
 function validateMatch(match, errors) {
   if (match === undefined) return {};
   if (!isObj(match)) {
-    errors.push('match 必须是对象');
+    errors.push('match must be an object');
     return {};
   }
   for (const k of Object.keys(match)) {
-    if (!MATCH_KEYS.has(k)) errors.push(`match.${k} 不是支持的匹配条件`);
+    if (!MATCH_KEYS.has(k)) errors.push(`match.${k} is not a supported match condition`);
   }
   const out = {};
   if (match.any !== undefined) out.any = !!match.any;
@@ -169,19 +169,19 @@ function validateMatch(match, errors) {
   if (match.cpuVendor !== undefined) out.cpuVendor = asArray(match.cpuVendor).map((v) => String(v).toLowerCase());
   if (match.accel !== undefined) out.accel = asArray(match.accel).map((v) => String(v).toLowerCase());
   if (match.gpuName !== undefined) {
-    if (!safeRegex(match.gpuName)) errors.push('match.gpuName 不是合法正则（且长度需 ≤200）');
+    if (!safeRegex(match.gpuName)) errors.push('match.gpuName is not a valid regular expression (and must be ≤200 characters)');
     else out.gpuName = String(match.gpuName);
   }
   for (const k of ['osBuild', 'totalMB', 'cores', 'emulatorVersion']) {
     if (match[k] === undefined) continue;
     if (!isObj(match[k]) && typeof match[k] !== 'number' && typeof match[k] !== 'string') {
-      errors.push(`match.${k} 必须是数字或 {min,max}`);
+      errors.push(`match.${k} must be a number or {min,max}`);
       continue;
     }
     if (isObj(match[k])) {
       const bad = ['min', 'max'].filter((x) => match[k][x] !== undefined && !Number.isFinite(Number(match[k][x])));
       if (bad.length) {
-        errors.push(`match.${k}.${bad.join('/')} 必须是数字`);
+        errors.push(`match.${k}.${bad.join('/')} must be a number`);
         continue;
       }
       out[k] = { min: match[k].min, max: match[k].max };
@@ -196,7 +196,7 @@ function validateArgs(args, errors) {
   const out = [];
   if (args === undefined) return out;
   if (!Array.isArray(args)) {
-    errors.push('effect.emulatorArgs 必须是字符串数组');
+    errors.push('effect.emulatorArgs must be an array of strings');
     return out;
   }
   for (const raw of args) {
@@ -206,21 +206,21 @@ function validateArgs(args, errors) {
     const flag = eq > 0 ? s.slice(0, eq) : s;
     const value = eq > 0 ? s.slice(eq + 1) : '';
     if (FORBIDDEN_ARGS[flag]) {
-      errors.push(`emulatorArgs 不允许 ${flag}：${FORBIDDEN_ARGS[flag]}`);
+      errors.push(`emulatorArgs may not contain ${flag}: ${FORBIDDEN_ARGS[flag]}`);
       continue;
     }
     if (eq < 0) {
-      if (!FLAG_ONLY.has(flag)) errors.push(`emulatorArgs 不支持单独的参数 ${flag}（带值的请写成 ${flag}=值）`);
+      if (!FLAG_ONLY.has(flag)) errors.push(`emulatorArgs does not support the bare flag ${flag} (write ${flag}=value for flags that take one)`);
       else out.push({ flag, value: '' });
       continue;
     }
     const rule = ARG_RULES[flag];
     if (!rule) {
-      errors.push(`emulatorArgs 不支持 ${flag}`);
+      errors.push(`emulatorArgs does not support ${flag}`);
       continue;
     }
     if (!rule.test(value)) {
-      errors.push(`emulatorArgs 的 ${flag} 取值不合法：${value}`);
+      errors.push(`Invalid value for emulatorArgs ${flag}: ${value}`);
       continue;
     }
     out.push({ flag, value });
@@ -232,18 +232,18 @@ function validateIni(ini, errors) {
   const out = {};
   if (ini === undefined) return out;
   if (!isObj(ini)) {
-    errors.push('effect.configIni 必须是对象');
+    errors.push('effect.configIni must be an object');
     return out;
   }
   for (const [k, v] of Object.entries(ini)) {
     const rule = INI_RULES[k];
     if (!rule) {
-      errors.push(`configIni 不支持 ${k}（会破坏数据分区 / 落点的键一律拒绝）`);
+      errors.push(`configIni does not support ${k} (keys that would break the data partition / install location are rejected)`);
       continue;
     }
     const s = String(v);
     if (!rule.test(s)) {
-      errors.push(`configIni 的 ${k} 取值不合法：${s}`);
+      errors.push(`Invalid value for configIni ${k}: ${s}`);
       continue;
     }
     out[k] = s;
@@ -255,17 +255,17 @@ function validateEnv(env, errors) {
   const out = {};
   if (env === undefined) return out;
   if (!isObj(env)) {
-    errors.push('effect.env 必须是对象');
+    errors.push('effect.env must be an object');
     return out;
   }
   for (const [k, v] of Object.entries(env)) {
     if (!ENV_NAME_RULES.some((re) => re.test(k))) {
-      errors.push(`env 不允许设置 ${k}（只放行 ANDROID_/QEMU_/LIBGL_/MESA_/EMUGL_ 前缀）`);
+      errors.push(`env may not set ${k} (only ANDROID_/QEMU_/LIBGL_/MESA_/EMUGL_ prefixes are allowed)`);
       continue;
     }
     const s = String(v);
     if (s.length > 200 || /[\r\n\0]/.test(s)) {
-      errors.push(`env.${k} 的取值不合法（长度 ≤200，且不能含换行）`);
+      errors.push(`Invalid value for env.${k} (≤200 characters, no line breaks)`);
       continue;
     }
     out[k] = s;
@@ -274,7 +274,7 @@ function validateEnv(env, errors) {
 }
 
 /**
- * 校验一份驱动（就是 JSON.parse 之后的对象）。
+ * 校验一份驱动 (就是 JSON.parse 之后的对象)。
  * 返回 errors 是给人看的，能一次列全，不要「修一个报一个」。
  * @param {object} raw
  * @param {object} [opts] { file } 出错时带上文件名
@@ -283,50 +283,50 @@ function validateEnv(env, errors) {
 function validateDriver(raw, { file = '' } = {}) {
   const errors = [];
   const where = file ? `${file}: ` : '';
-  if (!isObj(raw)) return { ok: false, errors: [`${where}驱动必须是 JSON 对象`], driver: null };
+  if (!isObj(raw)) return { ok: false, errors: [`${where}the driver must be a JSON object`], driver: null };
 
   if (raw.format !== DRIVER_FORMAT) {
-    errors.push(`${where}format 必须是 "${DRIVER_FORMAT}"（当前 ${JSON.stringify(raw.format)}）`);
+    errors.push(`${where}format must be \"${DRIVER_FORMAT}\" (currently ${JSON.stringify(raw.format)})`);
   }
   const id = String(raw.id || '').trim();
   if (!/^[a-z0-9][a-z0-9._-]{2,63}$/i.test(id)) {
-    errors.push(`${where}id 必须由字母数字和 . _ - 组成，3~64 个字符（例如 amd-igpu-swangle）`);
+    errors.push(`${where}id must contain only letters, digits and . _ - (3-64 characters, e.g. amd-igpu-swangle)`);
   }
   const name = String(raw.name || '').trim();
-  if (!name || name.length > 80) errors.push(`${where}name 必填，且不超过 80 字`);
+  if (!name || name.length > 80) errors.push(`${where}name is required and must be 80 characters or fewer`);
   const version = String(raw.version || '').trim();
-  if (!/^\d+(\.\d+){0,3}(-[A-Za-z0-9.]+)?$/.test(version)) errors.push(`${where}version 必须形如 1.0.0`);
+  if (!/^\d+(\.\d+){0,3}(-[A-Za-z0-9.]+)?$/.test(version)) errors.push(`${where}version must look like 1.0.0`);
   if (raw.priority !== undefined && (!Number.isFinite(Number(raw.priority)) || Math.abs(Number(raw.priority)) > 100)) {
-    errors.push(`${where}priority 必须是 -100 ~ 100 的数字`);
+    errors.push(`${where}priority must be a number from -100 to 100`);
   }
 
   const match = validateMatch(raw.match, errors);
   if (raw.match !== undefined && isObj(raw.match) && Object.keys(raw.match).length === 0) {
-    errors.push(`${where}match 不能是空对象；如果要匹配所有机器请写 {"any": true}`);
+    errors.push(`${where}match cannot be an empty object; to match every machine write {\"any\": true}`);
   }
   const effectRaw = isObj(raw.effect) ? raw.effect : null;
-  if (!effectRaw) errors.push(`${where}effect 必须是对象`);
+  if (!effectRaw) errors.push(`${where}effect must be an object`);
   let effect = {
     gpuMode: '', forceTcg: null, args: [], ini: {}, env: {}, notes: [],
   };
   if (effectRaw) {
     for (const k of Object.keys(effectRaw)) {
-      if (!EFFECT_KEYS.has(k)) errors.push(`${where}effect.${k} 不是支持的字段`);
+      if (!EFFECT_KEYS.has(k)) errors.push(`${where}effect.${k} is not a supported field`);
     }
     if (effectRaw.gpuMode !== undefined) {
       const v = String(effectRaw.gpuMode);
-      if (!ARG_RULES['-gpu'].test(v)) errors.push(`${where}effect.gpuMode 取值不合法：${v}`);
+      if (!ARG_RULES['-gpu'].test(v)) errors.push(`Invalid ${where}effect.gpuMode value: ${v}`);
       else effect.gpuMode = v;
     }
     if (effectRaw.forceTcg !== undefined) {
-      if (typeof effectRaw.forceTcg !== 'boolean') errors.push(`${where}effect.forceTcg 必须是 true/false`);
+      if (typeof effectRaw.forceTcg !== 'boolean') errors.push(`${where}effect.forceTcg must be true/false`);
       else effect.forceTcg = effectRaw.forceTcg;
     }
     effect.args = validateArgs(effectRaw.emulatorArgs, errors);
     effect.ini = validateIni(effectRaw.configIni, errors);
     effect.env = validateEnv(effectRaw.env, errors);
     if (effectRaw.notes !== undefined) {
-      if (!Array.isArray(effectRaw.notes)) errors.push(`${where}effect.notes 必须是字符串数组`);
+      if (!Array.isArray(effectRaw.notes)) errors.push(`${where}effect.notes must be an array of strings`);
       else {
         effect.notes = effectRaw.notes
           .map((n) => String(n).trim())
@@ -350,7 +350,7 @@ function validateDriver(raw, { file = '' } = {}) {
       description: String(raw.description || '').slice(0, 400),
       homepage: String(raw.homepage || '').slice(0, 200),
       priority: Number(raw.priority || 0),
-      // 内置示例统一 disabled，用户自己的默认启用
+      // Built-in examples统一 disabled，用户自己的默认启用
       enabled: raw.enabled !== false,
       match,
       effect,
@@ -427,14 +427,14 @@ function matchHost(match, host) {
   return { ok: hits.length > 0, hits };
 }
 
-/** 匹配条件越多越"具体"：同等 priority 时，泛化驱动先应用，专门的驱动后应用（覆盖它） */
+/** 匹配条件越多越"具体": 同等 priority 时，泛化驱动先App，专门的驱动后App (覆盖它) */
 function specificity(match) {
   return Object.keys(match || {}).filter((k) => k !== 'any').length;
 }
 
 /**
  * 把命中的驱动按「泛化 → 具体 → priority」顺序叠成一份效果。
- * 后面的覆盖前面的：gpuMode/forceTcg 取最后一个，args 同 flag 取最后一个，ini/env 合并。
+ * 后面的覆盖前面的: gpuMode/forceTcg 取最后一个，args 同 flag 取最后一个，ini/env 合并。
  */
 function mergeEffect(drivers) {
   const effect = {
@@ -455,17 +455,17 @@ function mergeEffect(drivers) {
     }
     Object.assign(effect.ini, e.ini);
     Object.assign(effect.env, e.env);
-    for (const n of e.notes) effect.notes.push(`${d.name}：${n}`);
+    for (const n of e.notes) effect.notes.push(`${d.name}: ${n}`);
   }
   return effect;
 }
 
 /**
- * 从一堆（已校验的）驱动里挑出这台机器要用的，并合成最终效果。
+ * 从一堆 (已校验的)驱动里挑出这台机器要用的，并合成最终效果。
  *
- * `state` 是用户在界面上做的显式开关（id → true/false），优先级高于文件里的
- * `enabled`：内置示例默认 `enabled:false`，用户点一下「启用」就写进 state，
- * 不需要去安装目录改 JSON（商店版目录是只读的，改不了）。
+ * `state` 是用户在界面上做的显式开关 (id → true/false)，优先级高于文件里的
+ * `enabled`: Built-in examples默认 `enabled:false`，用户点一下「启用」就写进 state，
+ * 不需要去安装目录改 JSON (商店版目录是只读的，改不了)。
  *
  * @param {object} o { drivers, host, state, disabled }
  * @returns {{ applied:Array, skipped:Array, effect:object }}
@@ -497,18 +497,18 @@ function resolve({ drivers = [], host = {}, state = {}, disabled = [] } = {}) {
 
 // ---------------- 文件 IO ----------------
 
-/** 用户驱动目录（与设置、日志同级，跟着数据目录走） */
+/** 用户驱动目录 (与Settings, logs同级，跟着数据目录走) */
 function userDir(store) {
   return path.join(store.DATA_DIR, 'drivers');
 }
 
-/** 随包内置的示例驱动（只读；默认 enabled:false，作为模板给人抄） */
+/** 随包内置的示例驱动 (只读; 默认 enabled:false，作为模板给人抄) */
 function bundledDir(appRoot) {
   return path.join(appRoot || '.', 'src', 'drivers');
 }
 
 /**
- * 读一个目录里的全部驱动。坏文件不阻断其它驱动：
+ * 读一个目录里的全部驱动。坏文件不阻断其它驱动: 
  * 报错收集起来交给界面显示，能用的照常用。
  * @returns {{ drivers:Array, errors:Array<{file:string, errors:string[]}>, dir:string }}
  */
@@ -529,12 +529,12 @@ function loadDir(dir) {
     try {
       const st = fs.statSync(file);
       if (st.size > MAX_DRIVER_BYTES) {
-        out.errors.push({ file, errors: [`文件过大（${st.size} 字节，上限 ${MAX_DRIVER_BYTES}）`] });
+        out.errors.push({ file, errors: [`File too large (${st.size} bytes, limit ${MAX_DRIVER_BYTES})`] });
         continue;
       }
       raw = JSON.parse(fs.readFileSync(file, 'utf8'));
     } catch (e) {
-      out.errors.push({ file, errors: [`读不出来：${e.message}`] });
+      out.errors.push({ file, errors: [`Cannot read it: ${e.message}`] });
       continue;
     }
     const r = validateDriver(raw, { file });
@@ -544,7 +544,7 @@ function loadDir(dir) {
   return out;
 }
 
-/** 读多个目录并按 id 去重：用户目录优先（同 id 时覆盖内置） */
+/** 读多个目录并按 id 去重: use户目录优先 (同 id 时覆盖内置) */
 function loadAll(dirs = []) {
   const all = [];
   const errors = [];
@@ -561,18 +561,18 @@ function loadAll(dirs = []) {
 }
 
 /**
- * 导入一份驱动：先校验，再按 id 存成 `<id>.json`。
- * 文件名只由校验过的 id 决定，用户给的文件名不参与拼接（挡住 ../ 之类的路径穿越）。
+ * 导入一份驱动: 先校验，再按 id 存成 `<id>.json`。
+ * 文件名只由校验过的 id 决定，用户给的文件名不参与拼接 (挡住 ../ 之类的路径穿越)。
  * @returns {{ ok:boolean, file?:string, driver?:object, errors?:string[] }}
  */
 function importDriver(srcFile, destDir) {
   let raw;
   try {
     const st = fs.statSync(srcFile);
-    if (st.size > MAX_DRIVER_BYTES) return { ok: false, errors: ['文件过大，驱动最多 256 KB'] };
+    if (st.size > MAX_DRIVER_BYTES) return { ok: false, errors: ['File too large; a driver may be at most 256 KB'] };
     raw = JSON.parse(fs.readFileSync(srcFile, 'utf8'));
   } catch (e) {
-    return { ok: false, errors: [`读不出来：${e.message}`] };
+    return { ok: false, errors: [`Cannot read it: ${e.message}`] };
   }
   const r = validateDriver(raw, { file: path.basename(srcFile) });
   if (!r.ok) return { ok: false, errors: r.errors };
@@ -582,23 +582,23 @@ function importDriver(srcFile, destDir) {
     fs.writeFileSync(dest, `${JSON.stringify(raw, null, 2)}\n`, 'utf8');
     return { ok: true, file: dest, driver: r.driver };
   } catch (e) {
-    return { ok: false, errors: [`写入失败：${e.message}`] };
+    return { ok: false, errors: [`Write failed: ${e.message}`] };
   }
 }
 
 /**
- * 导出一份「本机模板」：把当前机器的画像填进 match，
+ * 导出一份「本机模板」: 把当前机器的画像填进 match，
  * 用户只要改 effect 就能做出「只对我这台机器生效」的驱动。
  */
-function templateFromHost(host = {}, { name = '我的机器' } = {}) {
+function templateFromHost(host = {}, { name = 'My machine' } = {}) {
   const gpu = host.gpuVendor && host.gpuVendor !== 'unknown' ? host.gpuVendor : 'unknown';
   return {
     format: DRIVER_FORMAT,
     id: `my-${gpu}-${toInt(host.osBuild) || 'custom'}`.toLowerCase().replace(/[^a-z0-9._-]/g, '-'),
-    name: `${name} 兼容补丁`,
+    name: `${name} compatibility patch`,
     version: '1.0.0',
     author: '',
-    description: '由 ApkStart「导出本机模板」生成：match 已经按这台机器填好，按需修改 effect 即可。',
+    description: 'Generated by ApkStart Export this PC template: match is already filled in for this machine, just adjust effect as needed.',
     priority: 0,
     match: {
       platform: host.platform || process.platform,
@@ -612,12 +612,12 @@ function templateFromHost(host = {}, { name = '我的机器' } = {}) {
       emulatorArgs: [],
       configIni: {},
       env: {},
-      notes: ['示例：把 gpuMode 改成 host / software 或打开 forceTcg 试试'],
+      notes: ['Example: change gpuMode to host / software, or turn on forceTcg'],
     },
   };
 }
 
-/** 把 gpuMode 翻译成 emulator 的 -gpu 值（auto 表示不改） */
+/** 把 gpuMode 翻译成 emulator 的 -gpu 值 (auto 表示不改) */
 function gpuModeToArg(mode) {
   const v = String(mode || '').trim();
   return v && v !== 'auto' ? v : '';
