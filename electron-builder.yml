@@ -85,7 +85,7 @@ nsis:
   # 或者图标还指着旧 exe。always 保证每次安装后都指向当前安装目录。
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  artifactName: ApkStart-${version}-Setup.exe
+  artifactName: ApkStart-0.6.4-en.1-Setup.exe
   # 卸载前先结束仍在运行的运行时进程，避免文件被锁导致无法删除
   # （火绒等粉碎工具删不掉，多半是 qemu/adb 进程还驻留）。
   include: build/installer.nsh
